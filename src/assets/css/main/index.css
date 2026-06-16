@@ -1,0 +1,29 @@
+@keyframes bar-wave {
+    0%,
+    100% {
+        opacity: 0.35;
+        transform: scaleY(0.4);
+    }
+    50% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+/* 播放时的条形样式及动画延迟 */
+.animate-wave-bar-1 {
+    transform-origin: center;
+    animation: bar-wave 1s ease-in-out infinite;
+}
+
+.animate-wave-bar-2 {
+    transform-origin: center;
+    animation: bar-wave 1s ease-in-out infinite;
+    animation-delay: 0.15s;
+}
+
+.animate-wave-bar-3 {
+    transform-origin: center;
+    animation: bar-wave 1s ease-in-out infinite;
+    animation-delay: 0.3s;
+}

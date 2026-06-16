@@ -1,0 +1,68 @@
+[package]
+name = "Pointra"
+version = "1.0.0"
+description = "A Word Search Assistant Based on Mouse Pointer"
+authors = ["SYJun"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "pointra_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+window-vibrancy = "0.7.1"
+tauri-plugin-global-shortcut = "2.3.1"
+mouse_position = "0.1.4"
+anyhow = "1"
+screenshots = "0.8.10"
+image = "0.25.10"
+device_query = "4.0.1"
+reqwest = { version = "0.13.3", features = ["json"] }
+md5 = "0.8.0"
+uuid = {version = "1.23.1",  features = ["v4", "serde"] }
+tokio = "1.52.3"
+tauri-plugin-store = "2.4.3"
+rodio = "0.19"
+enigo = "0.6.1"
+keytap = { version = "0.4.0", features = ["serde"] }
+tauri-plugin-os = "2.3.2"
+ua_generator = "0.5.64"
+tauri-plugin-process = "2"
+tauri-plugin-autostart = "2"
+
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2.1" }
+objc2 = "0.6.4"
+objc = "0.2"
+objc2-core-foundation = { version = "0.3.2" }
+objc2-foundation = { version = "0.3.2", features = [
+    "NSString", "NSArray", "NSData", "NSDictionary",
+    "NSEnumerator", "NSObject"
+] }
+objc2-vision = "0.3.2"
+core-graphics = "0.24"
+cocoa = "0.25"
+arboard = "3.6.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.51", features = [
+    "Media_Ocr",
+    "Graphics_Imaging",
+    "Globalization",
+    "Storage_Streams",
+    "Foundation",
+    "Foundation_Collections",
+] }

@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+@font-face {
+    font-family: "DingTalk";
+    src: url("../fonts/DingTalk_JinBuTi.ttf");
+}
+@theme {
+    --font-DingTalk: "DingTalk";
+    /*背景层次*/
+    --color-subBgW: #fafafa;
+    --color-tagBgW: #f5f5f5;
+
+    /*边框 / 分隔*/
+    --color-borderMainW: #e8e8e8;
+    --color-borderSubW: #f0f0f0;
+
+    /*文字层次*/
+    --color-mainTitleW: #1a1a1a;
+    --color-tagW: #bbbbbb;
+    --color-tagSecondW: #aaaaaa;
+
+    /*强调色*/
+    --color-stateGreenW: #34c759;
+    --color-mainBlueW: #4a90d9;
+    --color-blueBgW: #eaf3fb;
+    --color-blueBorderW: #b3d4f0;
+}
+
+:root {
+    border-radius: 16px;
+    background-color: #ffffff;
+    font-family: var(--font-DingTalk);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    overflow: hidden;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+img {
+    user-select: none;
+    -webkit-user-drag: none;
+}
+@layer utilities {
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+    }
+}

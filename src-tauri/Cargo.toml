@@ -41,7 +41,7 @@ tauri-plugin-os = "2.3.2"
 ua_generator = "0.5.64"
 tauri-plugin-process = "2"
 tauri-plugin-autostart = "2"
-
+arboard = "3.6.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2.1" }
@@ -55,7 +55,7 @@ objc2-foundation = { version = "0.3.2", features = [
 objc2-vision = "0.3.2"
 core-graphics = "0.24"
 cocoa = "0.25"
-arboard = "3.6.1"
+
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.51", features = [
@@ -65,4 +65,20 @@ windows = { version = "0.51", features = [
     "Storage_Streams",
     "Foundation",
     "Foundation_Collections",
+    "Win32_UI_Accessibility",
+    "Win32_System_Com",
+    "Win32_System_DataExchange"
 ] }
+
+[profile.release]
+# 优化代码大小：'z' 优化代码大小，'s' 优化大小并兼顾性能
+opt-level = "s"
+
+# 开启 LTO（链接时优化），消除未使用的代码，极大减少体积
+lto = true
+
+# 减少并行编译的 Codegen 单元，能提升 LTO 的全局优化效果
+codegen-units = 1
+
+# 移除二进制文件中的调试信息和符号表（非常关键，能缩减数 MB）
+strip = true

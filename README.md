@@ -15,6 +15,7 @@
 
 Pointra 是一款跨平台（macOS / Windows）桌面翻译工具。核心思路是：通过屏幕截图 + OCR 技术识别光标附近的文字进行翻译，无需手动选中或输入单词，极大提升阅读和学习效率。
 
+本项目是在 [yelog/SnapTraTranslator](https://github.com/yelog/SnapTraTranslator)（一款优秀的 macOS 离线快速翻译软件）的基础上编写的。非常感谢作者 [@yelog](https://github.com/yelog) 的开源付出，为本项目提供了最初的灵感与核心思路！
 
 <p align="center">
   <img src="public/demo-main.png" alt="Pointra" width="920" />

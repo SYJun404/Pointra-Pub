@@ -9,7 +9,7 @@ use windows::Media::Ocr::OcrResult;
 use windows::Storage::Streams::DataWriter;
 use windows::Storage::Streams::InMemoryRandomAccessStream;
 
-pub use crate::utils::ocr_common::{select_sentence, select_word};
+pub use crate::utils::ocr_common::select_word;
 
 // ── Tauri State ───────────────────────────────────────────
 pub struct OcrState {
@@ -94,9 +94,8 @@ fn preprocess_for_ocr(img: &image::DynamicImage) -> image::DynamicImage {
     let contrasted = auto_contrast(&gray);
 
     // 4. Unsharp Mask 轻度锐化，让字符边缘更锐利
-    let sharpened = unsharp_mask(&contrasted, 1.2, 0.5);
 
-    sharpened
+    unsharp_mask(&contrasted, 1.2, 0.5)
 }
 
 /// 自动对比度拉伸：裁剪两端 0.5% outlier 后线性映射到 0..255
@@ -107,7 +106,7 @@ fn auto_contrast(img: &image::DynamicImage) -> image::DynamicImage {
         histogram[p.0[0] as usize] += 1;
     }
 
-    let total = (gray.width() * gray.height()) as u32;
+    let total = gray.width() * gray.height();
     let clip = (total as f64 * 0.005).max(1.0) as u32; // 两端各 0.5%
 
     let mut acc = 0u32;
@@ -165,7 +164,7 @@ fn gaussian_blur_gray(img: &image::GrayImage, sigma: f32) -> image::GrayImage {
     // 1D Gaussian kernel
     let mut kernel = Vec::with_capacity(size);
     let mut sum = 0.0f32;
-    for i in -(radius as i32)..=radius {
+    for i in -radius..=radius {
         let v = (-(i * i) as f32 / (2.0 * sigma * sigma)).exp();
         kernel.push(v);
         sum += v;

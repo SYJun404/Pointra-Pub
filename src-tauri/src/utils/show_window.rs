@@ -6,20 +6,28 @@ pub fn show_main_window<R: Runtime>(window: &WebviewWindow<R>, custom_x: i32, cu
     if let MousePosition::Position { x, y } = MousePosition::get_mouse_position() {
         let monitors = window.available_monitors().unwrap_or_default();
 
+        // ⚠️ 两个平台上 mouse_position 返回的坐标系并不一致：
+        //   Windows: GetCursorPos() → 物理像素（本进程为 per-monitor DPI aware）
+        //   macOS:   CGEvent::location() → 逻辑点（Retina 上物理 = 点 × scale_factor）
+        // 所以匹配显示器时必须用各自的坐标系，不能一刀切。
         let monitor = monitors.iter().find(|m| {
             let pos = m.position();
             let size = m.size();
-            let scale = m.scale_factor();
 
-            let logical_x = pos.x as f64 / scale;
-            let logical_y = pos.y as f64 / scale;
-            let logical_w = size.width as f64 / scale;
-            let logical_h = size.height as f64 / scale;
+            #[cfg(target_os = "macos")]
+            let (left, top, width, height) = {
+                let scale = m.scale_factor();
+                (
+                    (pos.x as f64 / scale) as i32,
+                    (pos.y as f64 / scale) as i32,
+                    (size.width as f64 / scale) as i32,
+                    (size.height as f64 / scale) as i32,
+                )
+            };
+            #[cfg(not(target_os = "macos"))]
+            let (left, top, width, height) = (pos.x, pos.y, size.width as i32, size.height as i32);
 
-            x as f64 >= logical_x
-                && (x as f64) < logical_x + logical_w
-                && y as f64 >= logical_y
-                && (y as f64) < logical_y + logical_h
+            x >= left && x < left + width && y >= top && y < top + height
         });
 
         let monitor = match monitor.or_else(|| monitors.first()) {
@@ -33,12 +41,20 @@ pub fn show_main_window<R: Runtime>(window: &WebviewWindow<R>, custom_x: i32, cu
 
         let window_phys_w = (320.0 * scale) as i32;
         let window_phys_h = (420.0 * scale) as i32;
-        let phys_x = (x as f64 * scale) as i32;
-        let phys_y = (y as f64 * scale) as i32;
+
+        // 统一换算成「物理像素」：
+        //   Windows: x/y 已经是物理像素，不要再乘 scale
+        //            （否则窗口会被放到「鼠标坐标 × scale_factor」的位置，150% 缩放下明显偏离鼠标）
+        //   macOS:   x/y 是逻辑点，必须 × scale 才能得到物理像素
+        #[cfg(target_os = "macos")]
+        let (cursor_phys_x, cursor_phys_y) = ((x as f64 * scale) as i32, (y as f64 * scale) as i32);
+        #[cfg(not(target_os = "macos"))]
+        let (cursor_phys_x, cursor_phys_y) = (x, y);
+
         let offset = (10.0 * scale) as i32;
 
-        let mut final_x = phys_x + offset - (custom_x * scale as i32);
-        let mut final_y = phys_y + offset - (custom_y * scale as i32);
+        let mut final_x = cursor_phys_x + offset - (custom_x * scale as i32);
+        let mut final_y = cursor_phys_y + offset - (custom_y * scale as i32);
 
         // 超出右边界，进行调整
         let monitor_right_edge = monitor_pos.x + monitor_size.width as i32;

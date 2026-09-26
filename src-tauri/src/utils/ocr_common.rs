@@ -294,25 +294,31 @@ pub fn select_word(words: &[WordBox]) -> Option<String> {
             && CY <= w.y + w.h + TOL;
 
         if in_exact {
-            if best_exact.map_or(true, |(d, _)| dist2 < d) {
+            if best_exact.is_none_or(|(d, _)| dist2 < d) {
                 best_exact = Some((dist2, w));
             }
-        } else if in_fuzzy {
-            if best_fuzzy.map_or(true, |(d, _)| dist2 < d) {
-                best_fuzzy = Some((dist2, w));
-            }
+        } else if in_fuzzy && best_fuzzy.is_none_or(|(d, _)| dist2 < d) {
+            best_fuzzy = Some((dist2, w));
         }
     }
     best_exact.or(best_fuzzy).map(|(_, w)| w.text.clone())
 }
 
+// ── 整句取词（当前未被调用，保留备用）────────────────────
+// 取词兜底已改为 select_word：在终端 / TUI 里「整句」会把鼠标所在整行
+// 甚至跨行的 OCR 噪声一起抓取。若将来需要「按整句取词」，可直接复用下面这组实现。
+
+#[allow(dead_code)]
 pub const CURSOR_NX: f64 = 0.5;
+#[allow(dead_code)]
 pub const WORD_GAP_FACTOR: f64 = 1.8;
 
+#[allow(dead_code)]
 fn ends_sentence(w: &WordBox) -> bool {
     matches!(w.text.trim_end().chars().last(), Some('.' | '!' | '?'))
 }
 
+#[allow(dead_code)]
 pub fn select_sentence(words: &[WordBox]) -> Option<String> {
     if words.is_empty() {
         return None;

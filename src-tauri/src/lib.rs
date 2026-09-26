@@ -33,6 +33,9 @@ pub struct AppState {
 }
 
 pub fn run() {
+    // `mut` 只在 macOS 分支（tauri_nspanel 插件）里需要，
+    // 不要为了让 Windows 少一条 warning 就删掉它，否则 macOS 编译会失败。
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::Builder::new().build());

@@ -6,7 +6,10 @@ use enigo::{
 use std::{thread, time::Duration};
 use tauri::WebviewWindow;
 
-pub fn get_text(window: &WebviewWindow) -> Option<(String, i32, i32)> {
+/// 取词来源标记，与 Windows 侧保持同一套语义
+pub const SOURCE_CLIPBOARD_COPY: &str = "clipboard-copy";
+
+pub fn get_text(window: &WebviewWindow) -> Option<(String, i32, i32, &'static str)> {
     let mut enigo = Enigo::new(&Settings::default()).ok()?;
     let mut clipboard = Clipboard::new().ok()?;
 
@@ -36,5 +39,5 @@ pub fn get_text(window: &WebviewWindow) -> Option<(String, i32, i32)> {
             }
             None
         });
-    text_opt.map(|text| (text, 16, 18))
+    text_opt.map(|text| (text, 16, 18, SOURCE_CLIPBOARD_COPY))
 }

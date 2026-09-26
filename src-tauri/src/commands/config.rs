@@ -2,6 +2,8 @@ use crate::utils::define_config::{get_config_from_store, save_config_to_store, A
 use crate::utils::shortcuts::restart_shortcuts;
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
+// 仅 macOS 分支会用到（见 update_config 里的开机自启处理）
+#[cfg(target_os = "macos")]
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]

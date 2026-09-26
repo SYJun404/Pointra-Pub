@@ -39,6 +39,4 @@ pub fn check_permission() -> (bool, bool) {
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
-pub fn request_permission() {
-    ()
-}
+pub fn request_permission() {}

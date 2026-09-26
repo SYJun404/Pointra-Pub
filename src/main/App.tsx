@@ -34,6 +34,37 @@ function App() {
     // 监听鼠标移入/出窗口
     useWindowListener(isPinned, setIsPinned, hideWinKey, pinnedKey);
 
+    // 全局接收取词事件（Alt+1 选词翻译 / F2 指针取词）。
+    // 放在 App 层而不是 HomePage，是为了不依赖当前路由：
+    // 窗口停在 /search 时，取词结果以前会因为没人监听而被静默丢弃。
+    useEffect(() => {
+        const setupCursorListener = async () => {
+            const unlisten = await listen<
+                string | { text?: string; source?: string }
+            >("from-cursor", (event) => {
+                const payload = event.payload;
+                const word =
+                    typeof payload === "string" ? payload : payload?.text;
+                const source =
+                    typeof payload === "string" ? "" : (payload?.source ?? "");
+                if (!word) return;
+
+                console.debug(
+                    `[Pointra] from-cursor source=${source || "unknown"} word=${JSON.stringify(word)}`,
+                );
+                navigate("/", { state: { word, source, at: Date.now() } });
+            });
+
+            return unlisten;
+        };
+
+        const cursorListenerPromise = setupCursorListener();
+
+        return () => {
+            cursorListenerPromise.then((unlisten) => unlisten());
+        };
+    }, []);
+
     useEffect(() => {
         const setupListener = async () => {
             const unlisten = await listen<{ type: string; data: any }>(

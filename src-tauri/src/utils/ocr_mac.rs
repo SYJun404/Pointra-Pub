@@ -8,7 +8,7 @@ use objc2_vision::{
 };
 use std::sync::{Arc, Mutex};
 
-pub use crate::utils::ocr_common::{select_sentence, select_word};
+pub use crate::utils::ocr_common::select_word;
 
 // ── Tauri State：缓存启动时初始化的 OCR 配置 ──────────────
 pub struct OcrState {

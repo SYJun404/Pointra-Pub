@@ -1,5 +1,4 @@
 import { useOnWindowChange } from "../utils/useCustom";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -46,29 +45,19 @@ function HomePage({
         }
     };
 
+    // 取词事件统一由 App 层接收后通过路由 state 传进来，
+    // 这里响应 state 变化而不是只在挂载时读一次：
+    // 这样窗口已经停在首页时连续取词也能刷新结果。
     useEffect(() => {
-        if (location.state?.word) {
-            fetchTranslate(location.state.word);
-        }
+        const word = location.state?.word;
+        if (!word) return;
 
-        const setupListener = async () => {
-            const unlisten = await listen<string>(
-                "from-cursor",
-                async (event) => {
-                    await fetchTranslate(event.payload);
-                },
-            );
-
-            // 返回清理函数
-            return unlisten;
-        };
-
-        const listenerPromise = setupListener();
-
-        return () => {
-            listenerPromise.then((unlisten) => unlisten());
-        };
-    }, []);
+        const source = location.state?.source ?? "";
+        console.debug(
+            `[Pointra] translate word=${JSON.stringify(word)} source=${source || "unknown"}`,
+        );
+        fetchTranslate(word);
+    }, [location.state]);
 
     return (
         <div className="pt-3 flex flex-col gap-3 h-screen overflow-hidden">

@@ -68,8 +68,19 @@ pub fn show_main_window<R: Runtime>(window: &WebviewWindow<R>, custom_x: i32, cu
         // 再次设置位置
         let _ = window.set_position(target_pos);
         let _ = window.show();
-        let _ = window.set_focus();
+        // let _ = window.set_focus();
     }
+}
+
+/// 选词和框选共用翻译入口，由前端统一填入原文并发起翻译。
+pub fn show_translation_window<R: Runtime>(
+    window: &WebviewWindow<R>,
+    text: String,
+    custom_x: i32,
+    custom_y: i32,
+) {
+    show_main_window(window, custom_x, custom_y);
+    let _ = window.emit("win-event", json!({"type": "translate-text", "data": text}));
 }
 
 pub fn show_input_window(window: WebviewWindow) {

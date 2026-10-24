@@ -2,6 +2,7 @@
 export interface ShortcutItem {
     id: string;
     label: string;
+    description?: string;
     keys: string[];
     defaultKeys: string[];
     save: {
@@ -32,5 +33,7 @@ export interface RustAppConfig {
     select_text_code: string;
     search_win_modifiers: string;
     search_win_code: string;
+    region_capture_modifiers: string;
+    region_capture_code: string;
     first_setup_completed: boolean;
 }

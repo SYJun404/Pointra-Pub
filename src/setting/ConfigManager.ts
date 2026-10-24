@@ -1,5 +1,6 @@
 // ConfigManager.ts
 import { invoke } from "@tauri-apps/api/core";
+import { platform } from "@tauri-apps/plugin-os";
 import { RustAppConfig, GeneralSetting, ShortcutItem } from "./types";
 import {
     GENERAL_SETTINGS_TEMPLATE,
@@ -30,10 +31,16 @@ export class ConfigManager {
             value: rustConfig[meta.id],
         }));
 
-        const shortcuts: ShortcutItem[] = SHORTCUT_LIST_TEMPLATE.map(
+        const shortcuts: ShortcutItem[] = SHORTCUT_LIST_TEMPLATE.filter(
+            (meta) => !meta.macOnly || platform() === "macos",
+        ).map(
             (meta) => ({
                 ...meta,
-                keys: meta.rustKeys.map((key) => rustConfig[key]),
+                keys: meta.rustKeys.flatMap((key) =>
+                    key.endsWith("_modifiers")
+                        ? rustConfig[key].split("|").map((part) => part.trim()).filter(Boolean)
+                        : [rustConfig[key]],
+                ),
             }),
         );
 
@@ -51,31 +58,21 @@ export class ConfigManager {
     ): Promise<boolean> {
         try {
             // 将 shortcuts 和 general 转换为 RustAppConfig 格式
-            const config: RustAppConfig = {
-                auto_start: false,
-                auto_play: false,
-                pronunciation: "us",
-                pronunciation_volume: 50,
-                hide_win_key: "Tab",
-                pinned_key: "F1",
-                point_key: "F2",
-                search_win_code: "Digit2",
-                search_win_modifiers: "SUPER",
-                select_text_code: "Digit1",
-                select_text_modifiers: "SUPER",
-                theme: "light",
-                first_setup_completed: false,
-            };
+            // 保留当前平台未展示的设置，以及首次设置完成状态。
+            const config = await this.fetchRawConfig();
 
             for (const setting of general) {
                 Object.assign(config, { [setting.id]: setting.value });
             }
             for (const setting of shortcuts) {
                 for (const key of setting.save) {
+                    // 修饰键允许 Cmd + Shift 等组合，主按键始终取最后一个。
+                    const keys = setting.keys.map((value) => MODIFIER_MAP_RUST[value] ?? value);
+                    const value = key.id.endsWith("_modifiers")
+                        ? keys.slice(0, -1).join(" | ")
+                        : keys[keys.length - 1];
                     Object.assign(config, {
-                        [key.id]:
-                            MODIFIER_MAP_RUST[setting.keys[key.index]] ??
-                            setting.keys[key.index],
+                        [key.id]: value,
                     });
                 }
             }

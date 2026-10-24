@@ -11,6 +11,8 @@ cfg_mods!(
     capture_mac,
     macos_api,
     ocr_mac,
+    region_capture_mac,
+    region_text,
     set_window,
     selection_mac
 );

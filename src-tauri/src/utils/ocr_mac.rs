@@ -1,5 +1,8 @@
 use crate::utils::ocr_common::{self, NormalizedRect, WordBox};
-use objc2::{rc::Retained, AnyThread};
+use objc2::{
+    rc::{autoreleasepool, Retained},
+    AnyThread,
+};
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{NSArray, NSData, NSDictionary};
 use objc2_vision::{
@@ -8,7 +11,7 @@ use objc2_vision::{
 };
 use std::sync::{Arc, Mutex};
 
-pub use crate::utils::ocr_common::{select_sentence, select_word};
+pub use crate::utils::ocr_common::select_word;
 
 // ── Tauri State：缓存启动时初始化的 OCR 配置 ──────────────
 pub struct OcrState {
@@ -25,7 +28,7 @@ impl OcrState {
     /// 内部会用一张小白图做一次预热推理，把 CoreML 模型加载
     /// 提前到启动阶段，消除首次识别的 1-3 秒延迟。
     pub fn new() -> Arc<Self> {
-        let request = unsafe { build_english_request() };
+        let request = autoreleasepool(|_| unsafe { build_english_request() });
         let state = Arc::new(Self {
             request: Mutex::new(request),
         });
@@ -80,10 +83,39 @@ pub fn recognize_words(
     img: &image::DynamicImage,
     state: &OcrState,
 ) -> anyhow::Result<Vec<WordBox>> {
+    recognize_tokens(img, state, RecognitionMode::Words)
+}
+
+/// 框选区域直接保留 Vision 的整行结果，省去每个词的精确 BBox 请求。
+pub fn recognize_region_text(
+    img: &image::DynamicImage,
+    state: &OcrState,
+) -> anyhow::Result<String> {
+    let lines = recognize_tokens(img, state, RecognitionMode::Lines)?;
+    Ok(super::region_text::region_translation_text(
+        &lines,
+        img.width(),
+        img.height(),
+    ))
+}
+
+#[derive(Clone, Copy)]
+enum RecognitionMode {
+    Words,
+    Lines,
+}
+
+fn recognize_tokens(
+    img: &image::DynamicImage,
+    state: &OcrState,
+    mode: RecognitionMode,
+) -> anyhow::Result<Vec<WordBox>> {
     let mut png: Vec<u8> = Vec::new();
     img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)?;
 
-    unsafe {
+    // 后台工作线程没有 Cocoa 事件循环为每次识别排空临时对象。
+    // 在这里建立局部释放池；成功和错误返回都会排空，只返回 Rust 拥有的数据。
+    autoreleasepool(|_| unsafe {
         let ns_data = NSData::with_bytes(&png);
 
         // 从 State 取出已配置好的 request，无需重建
@@ -130,6 +162,17 @@ pub fn recognize_words(
             let text_box_cg: CGRect = obs.boundingBox();
             let text_box = nr_from_cg(text_box_cg);
 
+            if matches!(mode, RecognitionMode::Lines) {
+                words.push(WordBox {
+                    text,
+                    x: text_box.x,
+                    y: 1.0 - text_box.y - text_box.h,
+                    w: text_box.w,
+                    h: text_box.h,
+                });
+                continue;
+            }
+
             // 脚本感知分词：中英混排行里拉丁段做 CamelCase 拆分
             for byte_range in ocr_common::script_aware_ranges(&text) {
                 let token = &text[byte_range.clone()];
@@ -169,7 +212,8 @@ pub fn recognize_words(
                     words.push(WordBox {
                         text: token.to_string(),
                         x: b.x,
-                        y: b.y,
+                        // Vision 原点在左下；共用选择逻辑统一使用左上原点。
+                        y: 1.0 - b.y - b.h,
                         w: b.w,
                         h: b.h,
                     });
@@ -178,5 +222,5 @@ pub fn recognize_words(
         }
 
         Ok(words)
-    }
+    })
 }

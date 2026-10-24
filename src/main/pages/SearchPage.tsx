@@ -1,5 +1,5 @@
 import { Magnifier, Xmark, Hashtag } from "@gravity-ui/icons";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { TransResultZHTypes } from "../types/transResult";
@@ -18,22 +18,24 @@ function SearchPage({ isMac }: { isMac: boolean }) {
     const [input, setinput] = useState<string>("");
     const [results, setResults] = useState<TransResultZHTypes | null>(null);
     const [loading, setLoading] = useState(false);
+    const translationRequest = useRef(0);
 
     // 窗口显示时执行的回调
     useOnWindowChange(() => {
         navigate("/");
     });
 
-    const handleSubmit = async (e: any) => {
-        e.preventDefault();
-        inputRef.current?.blur();
-        if (input.trim() === "") return;
+    const translate = useCallback(async (text: string) => {
+        if (text.trim() === "") return;
+        const request = ++translationRequest.current;
         setLoading(true);
+        setResults(null);
 
         try {
             const res = await invoke<TransResultZHTypes>("fetch_trans_res", {
-                word: input,
+                word: text,
             });
+            if (request !== translationRequest.current) return;
             if (res.status === 200) {
                 setResults(res);
             } else {
@@ -41,10 +43,16 @@ function SearchPage({ isMac }: { isMac: boolean }) {
             }
         } catch (err) {
             console.error(err);
-            setResults(null);
+            if (request === translationRequest.current) setResults(null);
         } finally {
-            setLoading(false);
+            if (request === translationRequest.current) setLoading(false);
         }
+    }, []);
+
+    const handleSubmit = async (e: any) => {
+        e.preventDefault();
+        inputRef.current?.blur();
+        await translate(input);
     };
 
     const changeInput = (e: any) => {
@@ -84,14 +92,20 @@ function SearchPage({ isMac }: { isMac: boolean }) {
     }, [input]);
 
     useEffect(() => {
-        if (location.state) {
+        if (location.state?.text) {
+            setinput(location.state.text);
+            void translate(location.state.text);
+        } else if (location.state?.data) {
             const res: TransResultZHTypes = location.state.data;
             setinput(res.data.translate.text);
             setResults(res);
         } else {
             inputRef.current?.focus();
         }
-    }, []);
+        return () => {
+            translationRequest.current += 1;
+        };
+    }, [location.key, translate]);
 
     return (
         <div className="pt-3 flex flex-col gap-3 h-screen overflow-hidden">

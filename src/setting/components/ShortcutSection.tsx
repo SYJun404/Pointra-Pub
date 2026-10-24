@@ -98,6 +98,11 @@ export default function ShortcutSection({
                                             </span>
                                         )}
                                     </div>
+                                    {item.description && (
+                                        <p className="text-[11px] text-tagSecondW mt-0.5">
+                                            {item.description}
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* 右侧 */}
@@ -163,7 +168,7 @@ export default function ShortcutSection({
                             </div>
 
                             {isRec && (
-                                <div className="px-4 pb-2.5">
+                                <div className="px-3 pb-2.5">
                                     <p className="text-[10px] text-mainBlueW/70">
                                         {showTips(item.id)}
                                     </p>

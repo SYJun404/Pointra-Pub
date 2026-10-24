@@ -1,6 +1,6 @@
 [package]
 name = "Pointra"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Word Search Assistant Based on Mouse Pointer"
 authors = ["SYJun"]
 edition = "2021"

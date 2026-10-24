@@ -48,9 +48,13 @@ function HomePage({
 
     useEffect(() => {
         if (location.state?.word) {
+            setResult(null);
+            setError(null);
             fetchTranslate(location.state.word);
         }
+    }, [location.key]);
 
+    useEffect(() => {
         const setupListener = async () => {
             const unlisten = await listen<string>(
                 "from-cursor",

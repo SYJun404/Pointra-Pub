@@ -19,6 +19,9 @@ pub fn init_point_listener(app_handle: AppHandle) {
         let device_state = DeviceState::new();
         let mut last_state = false; // false 代表松开，true 代表按下
         let mut cached_window = None;
+        if cached_window.is_none() {
+            cached_window = app_handle.get_webview_window("main");
+        }
 
         let current_key_str = app_handle
             .state::<AppState>()
@@ -40,11 +43,8 @@ pub fn init_point_listener(app_handle: AppHandle) {
 
                 if is_pressed {
                     // 按下：显示并聚焦
-                    if cached_window.is_none() {
-                        cached_window = app_handle.get_webview_window("main");
-                    }
                     if let Some(win) = &cached_window {
-                        get_word_under_cursor(app_handle.state(), win.clone());
+                        get_word_under_cursor(app_handle.state(), win.clone(), 0, 0);
                     }
                 } else {
                     let app_state = app_handle.state::<AppState>();
@@ -77,6 +77,16 @@ pub fn init_shortcuts<R: Runtime>(app: &AppHandle<R>) {
 
     let _ = shortcut_manager.register(shortcut_select_text);
     let _ = shortcut_manager.register(shortcut_show_input);
+    #[cfg(target_os = "macos")]
+    {
+        let shortcut = Shortcut::new(
+            Some(config.region_capture_modifiers),
+            config.region_capture_code,
+        );
+        if let Err(error) = shortcut_manager.register(shortcut) {
+            eprintln!("[Region OCR] 注册框选快捷键失败: {error}");
+        }
+    }
 }
 
 /// 处理快捷键事件
@@ -86,15 +96,21 @@ pub fn handle_shortcut_event(app: &AppHandle, shortcut: &Shortcut) {
 
     if let Some(win) = app.get_webview_window("main") {
         if shortcut.matches(config.select_text_modifiers, config.select_text_code) {
-            get_data_from_selected_text(win, app);
+            get_data_from_selected_text(win);
         } else if shortcut.matches(config.search_win_modifiers, config.search_win_code) {
             show_input_window(win);
+        }
+        #[cfg(target_os = "macos")]
+        if shortcut.matches(config.region_capture_modifiers, config.region_capture_code) {
+            crate::utils::region_capture_mac::start_region_capture(app.clone());
         }
     }
 }
 
-/// 重启两类快捷键
+/// 更新全局快捷键
 pub fn restart_shortcuts<R: Runtime>(app: &AppHandle<R>, new_config: AppConfig) {
+    // 设置改变时移除旧组合，避免旧按键继续占用或重复注册。
+    let _ = app.global_shortcut().unregister_all();
     {
         let app_state = app.state::<AppState>();
         let mut config = app_state.config.lock().unwrap();

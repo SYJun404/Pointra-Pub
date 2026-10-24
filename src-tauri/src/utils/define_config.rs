@@ -7,6 +7,7 @@ use tauri_plugin_global_shortcut::{Code, Modifiers};
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct AppConfig {
     pub theme: String,
     pub auto_start: bool,
@@ -24,6 +25,9 @@ pub struct AppConfig {
 
     pub search_win_modifiers: Modifiers,
     pub search_win_code: Code,
+
+    pub region_capture_modifiers: Modifiers,
+    pub region_capture_code: Code,
 
     pub first_setup_completed: bool,
 }
@@ -51,6 +55,8 @@ impl Default for AppConfig {
                 Modifiers::SUPER
             },
             search_win_code: Code::Digit2,
+            region_capture_modifiers: Modifiers::SUPER,
+            region_capture_code: Code::Digit3,
             first_setup_completed: false,
         }
     }
@@ -152,4 +158,42 @@ pub fn save_config_to_store<R: Runtime>(
     store.save().map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_config_keeps_custom_shortcuts_and_gains_region_capture() {
+        let mut stored = serde_json::to_value(AppConfig::default()).unwrap();
+        let object = stored.as_object_mut().unwrap();
+        object.remove("region_capture_modifiers");
+        object.remove("region_capture_code");
+        object.insert("search_win_code".into(), serde_json::json!("KeyK"));
+        object.insert("first_setup_completed".into(), serde_json::json!(true));
+        let defaults = serde_json::to_value(AppConfig::default()).unwrap();
+        assert!(merge_missing_fields(&mut stored, &defaults));
+        let config: AppConfig = serde_json::from_value(stored).unwrap();
+        assert_eq!(config.search_win_code, Code::KeyK);
+        assert!(config.first_setup_completed);
+        assert_eq!(config.region_capture_modifiers, Modifiers::SUPER);
+        assert_eq!(config.region_capture_code, Code::Digit3);
+    }
+
+    #[test]
+    fn custom_region_shortcut_survives_config_round_trip() {
+        let config = AppConfig {
+            region_capture_modifiers: Modifiers::SUPER | Modifiers::SHIFT,
+            region_capture_code: Code::KeyR,
+            ..AppConfig::default()
+        };
+        let restored: AppConfig =
+            serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+        assert_eq!(
+            restored.region_capture_modifiers,
+            Modifiers::SUPER | Modifiers::SHIFT
+        );
+        assert_eq!(restored.region_capture_code, Code::KeyR);
+    }
 }

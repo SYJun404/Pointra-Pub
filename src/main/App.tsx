@@ -11,6 +11,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { RustAppConfig } from "../setting/types";
 import { useShallow } from "zustand/react/shallow";
 import { usePlatform } from "../hooks/usePlatform";
+import { toast } from "@heroui/react";
+import { judgeSentence } from "./utils/tool";
 
 function App() {
     const navigate = useNavigate();
@@ -43,6 +45,16 @@ function App() {
                         navigate("/search");
                     } else if (event.payload.type === "config") {
                         updateConfig(event.payload.data);
+                    } else if (event.payload.type === "translate-text") {
+                        const text = event.payload.data;
+                        if (typeof text !== "string" || !text.trim()) return;
+                        if (judgeSentence(text)) {
+                            navigate("/search", { state: { text } });
+                        } else {
+                            navigate("/", { state: { word: text } });
+                        }
+                    } else if (event.payload.type === "region-error") {
+                        toast.danger(event.payload.data, { timeout: 4000 });
                     }
                 },
             );

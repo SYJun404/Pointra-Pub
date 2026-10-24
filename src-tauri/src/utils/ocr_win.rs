@@ -9,7 +9,7 @@ use windows::Media::Ocr::OcrResult;
 use windows::Storage::Streams::DataWriter;
 use windows::Storage::Streams::InMemoryRandomAccessStream;
 
-pub use crate::utils::ocr_common::{select_sentence, select_word};
+pub use crate::utils::ocr_common::select_word;
 
 // ── Tauri State ───────────────────────────────────────────
 pub struct OcrState {

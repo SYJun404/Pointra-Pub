@@ -5,16 +5,22 @@ mod commands;
 mod utils;
 use commands::access_mac::{check_permission, request_permission};
 use commands::audio::{play_phonetic_url, AudioState};
+use commands::cache::{
+    cache_stats, clear_word_cache, export_word_cache, import_word_cache, CacheState,
+};
 use commands::config::{complete_setup, get_config, update_config};
-use commands::translate::fetch_trans_res;
-use commands::window::{stop_shortcuts, trigger_update_check, update_hover_status};
+use commands::translate::{fetch_trans_res, TranslationTasks};
+use commands::window::{
+    hide_main_window, stop_shortcuts, trigger_update_check, update_hover_status,
+};
 use reqwest::Client;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::ShortcutState;
 use utils::define_config::{get_config_from_store, AppConfig};
+use utils::word_cache::WordCache;
 
 #[cfg(target_os = "macos")]
 use utils::{ocr_mac::OcrState, set_window::apply_window_effects};
@@ -48,6 +54,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             update_hover_status,
             fetch_trans_res,
+            hide_main_window,
+            cache_stats,
+            clear_word_cache,
+            export_word_cache,
+            import_word_cache,
             play_phonetic_url,
             get_config,
             update_config,
@@ -59,7 +70,25 @@ pub fn run() {
         ])
         // 初始化应用状态
         .setup(|app| {
+            app.manage(TranslationTasks::default());
             let config = get_config_from_store(app.handle()).unwrap_or_default();
+
+            let cache = app
+                .path()
+                .app_data_dir()
+                .map_err(anyhow::Error::from)
+                .and_then(|dir| WordCache::open(dir.join("word-cache.sqlite")));
+            let cache = match cache {
+                Ok(cache) => Some(cache),
+                Err(error) => {
+                    eprintln!("[WordCache] {error}");
+                    None
+                }
+            };
+            app.manage(CacheState {
+                cache: Arc::new(Mutex::new(cache)),
+                generation: Arc::new(AtomicU64::new(0)),
+            });
 
             // 先初始化 AppState（后续命令依赖它）
             app.manage(AppState {

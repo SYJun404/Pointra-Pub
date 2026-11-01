@@ -27,3 +27,53 @@
     animation: bar-wave 1s ease-in-out infinite;
     animation-delay: 0.3s;
 }
+
+@keyframes content-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.content-fade-in {
+    animation: content-fade-in 300ms ease-out;
+}
+
+/* Crossfade feedback without moving the header or footer. */
+.cursor-feedback {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.cursor-feedback-panel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity 300ms ease-in-out,
+        visibility 0s linear 300ms;
+}
+
+.cursor-feedback-panel.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .content-fade-in {
+        animation: none;
+    }
+
+    .cursor-feedback-panel {
+        transition: none;
+    }
+}

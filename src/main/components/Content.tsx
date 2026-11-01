@@ -209,7 +209,7 @@ function Content({
     };
 
     return (
-        <div className="mx-3 flex flex-col p-3 pt-2.5 flex-1 min-h-0 border-borderMainW border rounded-xl">
+        <div className="content-fade-in mx-3 flex flex-col p-3 pt-2.5 flex-1 min-h-0 border-borderMainW border rounded-xl">
             <main className="flex flex-col gap-2 ">
                 <div className="flex justify-between items-center">
                     <p className="text-xl text-mainTitleW">{translate.text}</p>

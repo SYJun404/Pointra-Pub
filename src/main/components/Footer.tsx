@@ -7,7 +7,7 @@ import {
 import logo from "../../assets/icon/pointraInApp.png";
 import useUiStore from "../../main/store/useUiStore";
 import { useNavigate } from "react-router-dom";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { hideMainWindow } from "../utils/useCustom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 function Footer({ path }: { path: string }) {
@@ -15,12 +15,11 @@ function Footer({ path }: { path: string }) {
     const isPinned = useUiStore((state) => state.isPinned);
     const updateUrl = useUiStore((state) => state.updateUrl);
     const setIsPinned = useUiStore((state) => state.setIsPinned);
-    const appWindow = getCurrentWindow();
 
     const ACTION_BUTTONS = [
         {
             id: "search",
-            func: () => appWindow.hide(),
+            func: hideMainWindow,
             icon: <ChevronDown color="#bbbbbb" height={14} width={14} />,
         },
         {
@@ -47,7 +46,7 @@ function Footer({ path }: { path: string }) {
     );
 
     const openUpdateUrl = async () => {
-        await appWindow.hide();
+        await hideMainWindow();
         openUrl(updateUrl);
     };
 

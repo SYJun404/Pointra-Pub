@@ -4,6 +4,15 @@ use std::sync::atomic::Ordering;
 use tauri::{AppHandle, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+#[tauri::command]
+pub fn hide_main_window(
+    window: tauri::WebviewWindow,
+    tasks: State<'_, super::translate::TranslationTasks>,
+) -> Result<(), String> {
+    tasks.abort_all();
+    window.hide().map_err(|error| error.to_string())
+}
+
 // 更新鼠标是否在窗口内
 #[tauri::command]
 pub fn update_hover_status(hovered: bool, state: State<'_, AppState>) {

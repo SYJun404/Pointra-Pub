@@ -68,6 +68,9 @@ pub fn start_region_capture(app: AppHandle) {
             return;
         };
         let was_visible = window.is_visible().unwrap_or(false);
+        app.state::<crate::commands::translate::TranslationTasks>()
+            .abort_all();
+        let _ = window.emit("window-will-hide", ());
         let _ = window.hide();
 
         let result = (|| -> anyhow::Result<Option<String>> {

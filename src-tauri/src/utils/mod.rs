@@ -27,3 +27,5 @@ pub mod show_window;
 pub mod trans_server;
 pub mod tray;
 pub mod update;
+
+pub mod word_cache;

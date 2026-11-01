@@ -1,3 +1,4 @@
+import { waitForCachePresentation } from "../utils/translationPresentation";
 import { Magnifier, Xmark, Hashtag } from "@gravity-ui/icons";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Header from "../components/Header";
@@ -20,14 +21,16 @@ function SearchPage({ isMac }: { isMac: boolean }) {
     const [loading, setLoading] = useState(false);
     const translationRequest = useRef(0);
 
-    // 窗口显示时执行的回调
+    // 隐藏时返回无路由状态的首页，下次显示先呈现 loading。
     useOnWindowChange(() => {
-        navigate("/");
+        translationRequest.current += 1;
+        navigate("/", { replace: true, state: null });
     });
 
     const translate = useCallback(async (text: string) => {
         if (text.trim() === "") return;
         const request = ++translationRequest.current;
+        const loadingStartedAt = performance.now();
         setLoading(true);
         setResults(null);
 
@@ -35,6 +38,8 @@ function SearchPage({ isMac }: { isMac: boolean }) {
             const res = await invoke<TransResultZHTypes>("fetch_trans_res", {
                 word: text,
             });
+            if (request !== translationRequest.current) return;
+            await waitForCachePresentation(res, loadingStartedAt);
             if (request !== translationRequest.current) return;
             if (res.status === 200) {
                 setResults(res);

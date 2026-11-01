@@ -1,7 +1,5 @@
 use anyhow::Context;
 use core_graphics::display::CGDisplay;
-use core_graphics::event::CGEvent;
-use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 use core_graphics::geometry::{CGPoint, CGRect, CGSize};
 use image::DynamicImage;
 
@@ -17,12 +15,12 @@ fn display_under_mouse(mouse: CGPoint) -> Option<(CGDisplay, CGRect)> {
     None
 }
 
-pub fn capture_around_cursor(capture_w: i32, capture_h: i32) -> anyhow::Result<DynamicImage> {
-    // 获取鼠标位置
-    let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
-        .expect("failed to create event source");
-    let event = CGEvent::new(source).expect("failed to create event");
-    let mouse_pos: CGPoint = event.location();
+pub fn capture_at_position(
+    position: (i32, i32),
+    capture_w: i32,
+    capture_h: i32,
+) -> anyhow::Result<DynamicImage> {
+    let mouse_pos = CGPoint::new(position.0 as f64, position.1 as f64);
 
     // 找到鼠标所在显示器
     let (display, disp_bounds) =

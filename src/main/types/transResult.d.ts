@@ -1,3 +1,5 @@
+export type TranslationSource = "memory" | "disk" | "network";
+
 export interface Translate {
     zly: string;
     errorCode: string;
@@ -59,6 +61,7 @@ export interface TransData {
 
 export interface TransResultTypes {
     status: number;
+    source: TranslationSource;
     data: TransData;
     msg: string;
 }
@@ -71,6 +74,7 @@ export interface TransDataZH {
 
 export interface TransResultZHTypes {
     status: number;
+    source: TranslationSource;
     data: TransDataZH;
     msg: string;
 }

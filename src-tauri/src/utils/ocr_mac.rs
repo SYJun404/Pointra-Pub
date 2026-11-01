@@ -49,7 +49,7 @@ unsafe fn build_english_request() -> Retained<VNRecognizeTextRequest> {
 
 /// 在独立线程里跑一次空白图推理，预热 CoreML / ANE
 fn warmup_async(state: Arc<OcrState>) {
-    tauri::async_runtime::spawn(async move {
+    tauri::async_runtime::spawn_blocking(move || {
         if let Err(e) = warmup_once(&state) {
             eprintln!("[MAC OCR warmup] 预热失败（不影响功能）: {e}");
         } else {
@@ -110,6 +110,8 @@ fn recognize_tokens(
     state: &OcrState,
     mode: RecognitionMode,
 ) -> anyhow::Result<Vec<WordBox>> {
+    let started = std::time::Instant::now();
+    let trace = std::env::var_os("POINTRA_TRACE_CURSOR").is_some();
     let mut png: Vec<u8> = Vec::new();
     img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)?;
 
@@ -119,10 +121,19 @@ fn recognize_tokens(
         let ns_data = NSData::with_bytes(&png);
 
         // 从 State 取出已配置好的 request，无需重建
+        let lock_started = std::time::Instant::now();
         let request = state
             .request
             .lock()
             .map_err(|_| anyhow::anyhow!("OcrState mutex poisoned"))?;
+
+        if trace {
+            eprintln!(
+                "[OCR] encode={:?} lock-wait={:?}",
+                lock_started.duration_since(started),
+                lock_started.elapsed()
+            );
+        }
 
         // 向上转型 VNRecognizeTextRequest → VNRequest
         // clone retained pointer 以构造 NSArray，不移动 request
@@ -140,9 +151,14 @@ fn recognize_tokens(
             &NSDictionary::new(),
         );
 
+        let inference_started = std::time::Instant::now();
         handler
             .performRequests_error(&requests)
             .map_err(|e| anyhow::anyhow!("Vision 执行失败: {:?}", e))?;
+
+        if trace {
+            eprintln!("[OCR] inference={:?}", inference_started.elapsed());
+        }
 
         let request_ptr = &**request as *const VNRecognizeTextRequest;
         let results: Retained<NSArray<VNRecognizedTextObservation>> = (*request_ptr)
@@ -223,4 +239,39 @@ fn recognize_tokens(
 
         Ok(words)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    /// Opt-in diagnostic: supply a PNG containing text and optionally an idle interval.
+    #[test]
+    #[ignore = "requires POINTRA_OCR_PROBE_IMAGE and runs native Vision inference"]
+    fn probe_cold_warm_and_idle_latency() {
+        let image = image::open(std::env::var("POINTRA_OCR_PROBE_IMAGE").unwrap()).unwrap();
+        let state = OcrState {
+            request: Mutex::new(autoreleasepool(|_| unsafe { build_english_request() })),
+        };
+        let warmup = Instant::now();
+        let warmed = warmup_once(&state);
+        eprintln!("blank warmup: {:?}, {warmed:?}", warmup.elapsed());
+        for label in ["first text after blank warmup", "warm text", "after idle"] {
+            if label == "after idle" {
+                let seconds = std::env::var("POINTRA_OCR_PROBE_IDLE_SECS")
+                    .unwrap_or_else(|_| "60".into())
+                    .parse()
+                    .unwrap();
+                std::thread::sleep(std::time::Duration::from_secs(seconds));
+            }
+            let started = Instant::now();
+            let words = recognize_words(&image, &state).unwrap();
+            eprintln!("{label}: {:?}, {} tokens", started.elapsed(), words.len());
+            assert!(
+                !words.is_empty(),
+                "probe image must contain recognizable text"
+            );
+        }
+    }
 }

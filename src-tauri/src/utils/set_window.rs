@@ -70,7 +70,7 @@ pub fn apply_window_effects(app_handle: AppHandle) {
         panel.set_level(PanelLevel::Floating.value());
 
         // Ensures the panel cannot activate the app
-        panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+        let _ = panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
 
         // Allows the panel to:
         // - display on the same space as the full screen window

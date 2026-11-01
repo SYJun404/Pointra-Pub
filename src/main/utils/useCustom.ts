@@ -1,6 +1,14 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { flushSync } from "react-dom";
+
+const WINDOW_WILL_HIDE = "window-will-hide";
+
+export function hideMainWindow() {
+    window.dispatchEvent(new Event(WINDOW_WILL_HIDE));
+    return invoke<void>("hide_main_window");
+}
 
 /**
  * 自定义 Hook：将最新值同步到 Ref 中，避免 useEffect 依赖频繁触发
@@ -21,8 +29,6 @@ export function useWindowListener(
     const stateRef = useLatest({ isPinned, hideKey, pinKey });
 
     useEffect(() => {
-        const appWindow = getCurrentWindow();
-
         const handleMouseEnter = () => {
             invoke("update_hover_status", { hovered: true });
         };
@@ -30,7 +36,7 @@ export function useWindowListener(
         const handleMouseLeave = () => {
             if (!stateRef.current.isPinned) {
                 invoke("update_hover_status", { hovered: false });
-                appWindow.hide();
+                void hideMainWindow();
             }
         };
 
@@ -38,7 +44,7 @@ export function useWindowListener(
             const { hideKey, pinKey, isPinned } = stateRef.current;
 
             if (e.key === hideKey) {
-                appWindow.hide();
+                void hideMainWindow();
             }
             if (e.key === pinKey) {
                 setIsPinned(!isPinned);
@@ -64,30 +70,25 @@ export function useWindowListener(
 }
 
 export function useOnWindowChange(onHide: () => void) {
-    const savedOnHide = useRef(onHide);
+    const savedOnHide = useLatest(onHide);
 
     useEffect(() => {
-        savedOnHide.current = onHide;
-    }, [onHide]);
+        let disposed = false;
+        const handleHide = () => {
+            if (disposed) return;
+            // 隐藏 WebView 前提交初始界面，避免恢复时先显示旧内容。
+            flushSync(() => savedOnHide.current());
+        };
 
-    useEffect(() => {
-        async function setupListener() {
-            const appWindow = getCurrentWindow();
+        window.addEventListener(WINDOW_WILL_HIDE, handleHide);
+        const listenerPromise = getCurrentWindow().listen(
+            WINDOW_WILL_HIDE,
+            handleHide,
+        );
 
-            // 监听窗口隐藏/失焦事件
-            const unlisten = await appWindow.listen("tauri://blur", () => {
-                // 判断窗口是否为隐藏状态
-                appWindow.isVisible().then((isShow) => {
-                    if (!isShow) {
-                        savedOnHide.current();
-                    }
-                });
-            });
-            return unlisten;
-        }
-
-        const listenerPromise = setupListener();
         return () => {
+            disposed = true;
+            window.removeEventListener(WINDOW_WILL_HIDE, handleHide);
             listenerPromise.then((unlisten) => unlisten());
         };
     }, []);

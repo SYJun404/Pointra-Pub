@@ -41,20 +41,32 @@ function App() {
             const unlisten = await listen<{ type: string; data: any }>(
                 "win-event",
                 (event) => {
-                    if (event.payload.type === "search") {
-                        navigate("/search");
-                    } else if (event.payload.type === "config") {
-                        updateConfig(event.payload.data);
-                    } else if (event.payload.type === "translate-text") {
-                        const text = event.payload.data;
-                        if (typeof text !== "string" || !text.trim()) return;
-                        if (judgeSentence(text)) {
-                            navigate("/search", { state: { text } });
-                        } else {
-                            navigate("/", { state: { word: text } });
+                    const { type, data } = event.payload;
+
+                    switch (type) {
+                        case "search":
+                            navigate("/search");
+                            break;
+                        case "config":
+                            updateConfig(data);
+                            break;
+                        case "cursor-state":
+                            navigate("/", { state: { cursor: data } });
+                            break;
+                        case "translate-text": {
+                            if (typeof data !== "string" || !data.trim())
+                                return;
+                            const isSentence = judgeSentence(data);
+                            navigate(isSentence ? "/search" : "/", {
+                                state: isSentence
+                                    ? { text: data }
+                                    : { word: data },
+                            });
+                            break;
                         }
-                    } else if (event.payload.type === "region-error") {
-                        toast.danger(event.payload.data, { timeout: 4000 });
+                        case "region-error":
+                            toast.danger(data, { timeout: 4000 });
+                            break;
                     }
                 },
             );

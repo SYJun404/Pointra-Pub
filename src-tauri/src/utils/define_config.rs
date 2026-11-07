@@ -55,7 +55,11 @@ impl Default for AppConfig {
                 Modifiers::SUPER
             },
             search_win_code: Code::Digit2,
-            region_capture_modifiers: Modifiers::SUPER,
+            region_capture_modifiers: if cfg!(target_os = "windows") {
+                Modifiers::ALT
+            } else {
+                Modifiers::SUPER
+            },
             region_capture_code: Code::Digit3,
             first_setup_completed: false,
         }
@@ -64,6 +68,8 @@ impl Default for AppConfig {
 
 // 定义一个常数作为 store 的文件名
 const CONFIG_FILE: &str = "config.json";
+#[cfg(target_os = "windows")]
+const REGION_SHORTCUT_MIGRATED: &str = "windows_region_shortcut_migrated";
 
 pub fn keycode_from_str(s: &str) -> Option<Keycode> {
     Some(match s {
@@ -129,6 +135,25 @@ pub fn get_config_from_store<R: Runtime>(app: &AppHandle<R>) -> Result<AppConfig
 
         let config: AppConfig = serde_json::from_value(stored_value.clone())
             .map_err(|e| format!("Failed to parse config JSON: {}", e))?;
+        #[cfg(target_os = "windows")]
+        let (config, stored_value, changed) = {
+            let mut config = config;
+            let mut stored_value = stored_value;
+            let mut changed = changed;
+            if !store.has(REGION_SHORTCUT_MIGRATED) {
+                // Windows previously persisted the macOS default even though the shortcut was disabled.
+                if config.region_capture_modifiers == Modifiers::SUPER
+                    && config.region_capture_code == Code::Digit3
+                {
+                    config.region_capture_modifiers = Modifiers::ALT;
+                    stored_value["region_capture_modifiers"] = serde_json::to_value(Modifiers::ALT)
+                        .map_err(|e| format!("Serialize region shortcut: {}", e))?;
+                }
+                store.set(REGION_SHORTCUT_MIGRATED, true);
+                changed = true;
+            }
+            (config, stored_value, changed)
+        };
 
         // 如果合并了新的字段，重新保存以持久化
         if changed {
@@ -154,6 +179,8 @@ pub fn save_config_to_store<R: Runtime>(
     let value = serde_json::to_value(config).map_err(|e| e.to_string())?;
 
     store.set("config".to_string(), value);
+    #[cfg(target_os = "windows")]
+    store.set(REGION_SHORTCUT_MIGRATED, true);
 
     store.save().map_err(|e| e.to_string())?;
 
@@ -177,7 +204,14 @@ mod tests {
         let config: AppConfig = serde_json::from_value(stored).unwrap();
         assert_eq!(config.search_win_code, Code::KeyK);
         assert!(config.first_setup_completed);
-        assert_eq!(config.region_capture_modifiers, Modifiers::SUPER);
+        assert_eq!(
+            config.region_capture_modifiers,
+            if cfg!(target_os = "windows") {
+                Modifiers::ALT
+            } else {
+                Modifiers::SUPER
+            }
+        );
         assert_eq!(config.region_capture_code, Code::Digit3);
     }
 

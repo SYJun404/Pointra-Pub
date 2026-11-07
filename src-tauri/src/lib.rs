@@ -8,7 +8,7 @@ use commands::audio::{play_phonetic_url, AudioState};
 use commands::cache::{
     cache_stats, clear_word_cache, export_word_cache, import_word_cache, CacheState,
 };
-use commands::config::{complete_setup, get_config, update_config};
+use commands::config::{complete_setup, get_config, get_default_config, update_config};
 use commands::translate::{fetch_trans_res, TranslationTasks};
 use commands::window::{
     hide_main_window, stop_shortcuts, trigger_update_check, update_hover_status,
@@ -61,6 +61,7 @@ pub fn run() {
             import_word_cache,
             play_phonetic_url,
             get_config,
+            get_default_config,
             update_config,
             complete_setup,
             stop_shortcuts,

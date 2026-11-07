@@ -2,7 +2,7 @@ import "../assets/css/App.css";
 import { useWindowListener } from "./utils/useCustom";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
-import { Routes, useNavigate, Route } from "react-router-dom";
+import { Routes, useLocation, useNavigate, Route } from "react-router-dom";
 import useUiStore from "./store/useUiStore";
 import SearchPage from "./pages/SearchPage";
 import HomePage from "./pages/HomePage";
@@ -16,7 +16,8 @@ import { judgeSentence } from "./utils/tool";
 
 function App() {
     const navigate = useNavigate();
-    const { isMac } = usePlatform();
+    const location = useLocation();
+    const { isWindows } = usePlatform();
 
     const isPinned = useUiStore((state) => state.isPinned);
     const setIsPinned = useUiStore((state) => state.setIsPinned);
@@ -34,7 +35,13 @@ function App() {
     const updateConfig = useConfigStore((state) => state.update);
 
     // 监听鼠标移入/出窗口
-    useWindowListener(isPinned, setIsPinned, hideWinKey, pinnedKey);
+    useWindowListener(
+        isPinned,
+        setIsPinned,
+        hideWinKey,
+        pinnedKey,
+        isWindows && location.pathname === "/search" ? location.key : null,
+    );
 
     useEffect(() => {
         const setupListener = async () => {
@@ -104,7 +111,7 @@ function App() {
                     />
                 }
             />
-            <Route path="/search" element={<SearchPage isMac={isMac} />} />
+            <Route path="/search" element={<SearchPage />} />
         </Routes>
     );
 }

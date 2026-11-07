@@ -1,4 +1,6 @@
 use crate::utils::ocr_common::{self, NormalizedRect, WordBox};
+use image::GenericImageView;
+use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use windows::Globalization::Language;
 use windows::Graphics::Imaging::BitmapDecoder;
@@ -9,7 +11,54 @@ use windows::Media::Ocr::OcrResult;
 use windows::Storage::Streams::DataWriter;
 use windows::Storage::Streams::InMemoryRandomAccessStream;
 
-pub use crate::utils::ocr_common::select_word;
+pub fn select_cursor_word(
+    words: &[WordBox],
+    cursor: (i32, i32),
+    size: (u32, u32),
+) -> Option<String> {
+    let (width, height) = (f64::from(size.0), f64::from(size.1));
+    let (x, y) = (f64::from(cursor.0), f64::from(cursor.1));
+    words
+        .iter()
+        .filter_map(|word| {
+            let (left, top) = (word.x * width, word.y * height);
+            let (w, h) = (word.w * width, word.h * height);
+            let dx = (left - x).max(x - left - w).max(0.0);
+            let dy = (top - y).max(y - top - h).max(0.0);
+            // Allow a small vertical gap near the glyphs, without snapping across lines.
+            if dx > 2.0 || dy > (h * 0.65).min(8.0) {
+                return None;
+            }
+            // Between lines, slightly favor the word above the cursor.
+            let vertical_distance = if y < top { dy * 1.15 } else { dy };
+            let edge_distance = dx.hypot(vertical_distance);
+            let center_distance = (x - left - w / 2.0).hypot(y - top - h / 2.0);
+            Some((word, edge_distance, center_distance))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.2.total_cmp(&b.2)))
+        .map(|(word, _, _)| word.text.clone())
+}
+
+fn cursor_word_ranges(text: &str) -> Vec<Range<usize>> {
+    let mut ranges = ocr_common::script_aware_ranges(text);
+    // Windows OCR can capitalize a small lowercase glyph (e.g. Join → JOin).
+    // Keep a leading single capital attached to a following title-case segment.
+    if let [first, second, ..] = ranges.as_slice() {
+        let bytes = text.as_bytes();
+        if *first == (0..1)
+            && second.start == first.end
+            && second.len() > 1
+            && bytes[0].is_ascii_uppercase()
+            && bytes[1].is_ascii_uppercase()
+            && bytes[2].is_ascii_lowercase()
+        {
+            let end = second.end;
+            ranges[0].end = end;
+            ranges.remove(1);
+        }
+    }
+    ranges
+}
 
 // ── Tauri State ───────────────────────────────────────────
 pub struct OcrState {
@@ -67,16 +116,18 @@ fn warmup_once(state: &OcrState) -> anyhow::Result<()> {
 // ── 图像预处理（提升 Windows OCR 准确率） ──────────────────
 
 /// 为 OCR 做图像预处理：小图放大 + 灰度化 + 自动对比度 + 轻度锐化
-fn preprocess_for_ocr(img: &image::DynamicImage) -> image::DynamicImage {
+fn preprocess_for_ocr(img: &image::DynamicImage, max_dimension: u32) -> image::DynamicImage {
     let (w, h) = (img.width(), img.height());
     let min_dim = w.min(h);
 
     // 1. 小图自动放大（Windows OCR 对 < 15px 的文字效果很差）
     //    放大后最小边 ≥ 400px，上限 3x，用 Lanczos3 保边缘清晰
-    let scaled = if min_dim < 400 {
-        let scale = (400.0 / min_dim as f64).min(3.0);
-        let new_w = (w as f64 * scale).round() as u32;
-        let new_h = (h as f64 * scale).round() as u32;
+    let scale = (400.0 / min_dim as f64)
+        .clamp(1.0, 3.0)
+        .min(max_dimension as f64 / w.max(h) as f64);
+    let scaled = if scale != 1.0 {
+        let new_w = (w as f64 * scale).round().max(1.0) as u32;
+        let new_h = (h as f64 * scale).round().max(1.0) as u32;
         image::DynamicImage::ImageRgba8(image::imageops::resize(
             img,
             new_w,
@@ -250,25 +301,68 @@ fn to_software_bitmap(img: &image::DynamicImage) -> anyhow::Result<SoftwareBitma
     }
 }
 
+/// 保留 Windows OCR 的整行文字及其位置，供共用逻辑恢复段落。
+pub fn recognize_region_text(
+    img: &image::DynamicImage,
+    state: &OcrState,
+) -> anyhow::Result<String> {
+    let processed = preprocess_for_ocr(img, OcrEngine::MaxImageDimension()?);
+    let (width, height) = processed.dimensions();
+    let bitmap = to_software_bitmap(&processed)?;
+    let result = recognize_bitmap(&bitmap, state)?;
+    let mut lines = Vec::new();
+    for line in result.Lines()? {
+        let mut bounds: Option<(f32, f32, f32, f32)> = None;
+        for word in line.Words()? {
+            let rect = word.BoundingRect()?;
+            let (right, bottom) = (rect.X + rect.Width, rect.Y + rect.Height);
+            bounds = Some(match bounds {
+                Some((x1, y1, x2, y2)) => (
+                    x1.min(rect.X),
+                    y1.min(rect.Y),
+                    x2.max(right),
+                    y2.max(bottom),
+                ),
+                None => (rect.X, rect.Y, right, bottom),
+            });
+        }
+        if let Some((left, top, right, bottom)) = bounds {
+            lines.push(WordBox {
+                text: line.Text()?.to_string(),
+                x: f64::from(left) / f64::from(width),
+                y: f64::from(top) / f64::from(height),
+                w: f64::from(right - left) / f64::from(width),
+                h: f64::from(bottom - top) / f64::from(height),
+            });
+        }
+    }
+    Ok(super::region_text::region_translation_text(
+        &lines, width, height,
+    ))
+}
+
+fn recognize_bitmap(bitmap: &SoftwareBitmap, state: &OcrState) -> anyhow::Result<OcrResult> {
+    let engine = state
+        .engine
+        .lock()
+        .map_err(|_| anyhow::anyhow!("OcrState mutex poisoned"))?;
+    Ok(engine.RecognizeAsync(bitmap)?.get()?)
+}
+
 /// 识别图片中的英文文字，返回带归一化坐标的单词列表。
 pub fn recognize_words(
     img: &image::DynamicImage,
     state: &OcrState,
 ) -> anyhow::Result<Vec<WordBox>> {
     // ── 图像预处理（提升小字/模糊/低对比度场景的准确率） ──
-    let processed = preprocess_for_ocr(img);
+    let processed = preprocess_for_ocr(img, u32::MAX);
     let (img_w, img_h) = (processed.width(), processed.height());
 
     // ── 创建 SoftwareBitmap ────────────────────────────
     let sb = to_software_bitmap(&processed)?;
 
     // ── OCR 识别 ─────────────────────────────────────────
-    let engine = state
-        .engine
-        .lock()
-        .map_err(|_| anyhow::anyhow!("OcrState mutex poisoned"))?;
-
-    let ocr_result: OcrResult = engine.RecognizeAsync(&sb)?.get()?;
+    let ocr_result = recognize_bitmap(&sb, state)?;
     let lines = ocr_result.Lines()?;
 
     let mut words = Vec::new();
@@ -283,7 +377,7 @@ pub fn recognize_words(
             }
 
             // 对每个词做脚本感知分词（处理 CamelCase 混合文本）
-            for byte_range in ocr_common::script_aware_ranges(&word_text) {
+            for byte_range in cursor_word_ranges(&word_text) {
                 let token = &word_text[byte_range.clone()];
                 if !ocr_common::contains_letter(token) {
                     continue;
@@ -331,4 +425,53 @@ pub fn recognize_words(
     }
 
     Ok(words)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cursor_word_keeps_short_title_case_words_intact() {
+        assert_eq!(cursor_word_ranges("JOin"), vec![0..4]);
+        assert_eq!(cursor_word_ranges("OAuth"), vec![0..5]);
+        assert_eq!(cursor_word_ranges("APIRequest"), vec![0..3, 3..10]);
+        assert_eq!(cursor_word_ranges("getValue"), vec![0..3, 3..8]);
+    }
+
+    #[test]
+    fn cursor_word_accepts_nearby_glyphs_but_rejects_distant_words() {
+        let words = [WordBox {
+            text: "Join".into(),
+            x: 0.10,
+            y: 0.10,
+            w: 0.30,
+            h: 0.12,
+        }];
+        assert_eq!(
+            select_cursor_word(&words, (20, 29), (100, 100)).as_deref(),
+            Some("Join")
+        );
+        assert_eq!(select_cursor_word(&words, (20, 31), (100, 100)), None);
+        assert_eq!(select_cursor_word(&words, (45, 18), (100, 100)), None);
+    }
+
+    #[test]
+    #[ignore = "requires the Join regression screenshot and Windows OCR"]
+    fn probe_join_screenshot() {
+        let source = image::open(std::env::var_os("POINTRA_OCR_PROBE_IMAGE").unwrap()).unwrap();
+        let state = OcrState {
+            engine: Mutex::new(new_engine().unwrap()),
+        };
+        let image = source.crop_imm(33, 0, 320, source.height());
+        let words = recognize_words(&image, &state).unwrap();
+        for cursor in [(150, 13), (160, 13), (170, 13), (160, 26)] {
+            let word = select_cursor_word(&words, cursor, image.dimensions());
+            assert!(
+                word.as_deref()
+                    .is_some_and(|word| word.eq_ignore_ascii_case("Join")),
+                "{cursor:?}: {word:?}"
+            );
+        }
+    }
 }

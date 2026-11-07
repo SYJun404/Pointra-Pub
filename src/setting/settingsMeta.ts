@@ -47,9 +47,7 @@ export const SHORTCUT_LIST_TEMPLATE: {
     id: string;
     label: string;
     description: string;
-    macOnly?: boolean;
     rustKeys: Keys[];
-    defaultKeys: string[];
     save: {
         id: string;
         index: number;
@@ -60,7 +58,6 @@ export const SHORTCUT_LIST_TEMPLATE: {
         label: "光标翻译",
         description: "按住查看光标处单词，松开后隐藏",
         rustKeys: ["point_key"],
-        defaultKeys: ["F2"],
         save: [
             {
                 id: "point_key",
@@ -73,7 +70,6 @@ export const SHORTCUT_LIST_TEMPLATE: {
         label: "窗口置顶",
         description: "切换窗口状态，固定后不自动隐藏",
         rustKeys: ["pinned_key"],
-        defaultKeys: ["F1"],
         save: [
             {
                 id: "pinned_key",
@@ -86,7 +82,6 @@ export const SHORTCUT_LIST_TEMPLATE: {
         label: "隐藏窗口",
         description: "在翻译窗口内按下，隐藏当前窗口",
         rustKeys: ["hide_win_key"],
-        defaultKeys: ["Tab"],
         save: [
             {
                 id: "hide_win_key",
@@ -99,7 +94,6 @@ export const SHORTCUT_LIST_TEMPLATE: {
         label: "选词翻译",
         description: "先选中文字，再按快捷键执行翻译",
         rustKeys: ["select_text_modifiers", "select_text_code"],
-        defaultKeys: ["SUPER", "Digit1"],
         save: [
             {
                 id: "select_text_modifiers",
@@ -112,23 +106,10 @@ export const SHORTCUT_LIST_TEMPLATE: {
         ],
     },
     {
-        id: "region_capture",
-        label: "框选翻译",
-        description: "拖动框选需要识别的文字 Esc取消",
-        macOnly: true,
-        rustKeys: ["region_capture_modifiers", "region_capture_code"],
-        defaultKeys: ["SUPER", "Digit3"],
-        save: [
-            { id: "region_capture_modifiers", index: 0 },
-            { id: "region_capture_code", index: 1 },
-        ],
-    },
-    {
         id: "search_win",
         label: "唤醒搜索",
         description: "打开搜索窗口，输入文字进行翻译",
         rustKeys: ["search_win_modifiers", "search_win_code"],
-        defaultKeys: ["SUPER", "Digit2"],
         save: [
             {
                 id: "search_win_modifiers",
@@ -140,12 +121,20 @@ export const SHORTCUT_LIST_TEMPLATE: {
             },
         ],
     },
+    {
+        id: "region_capture",
+        label: "框选翻译",
+        description: "拖动框选需要识别的文字 Esc取消",
+        rustKeys: ["region_capture_modifiers", "region_capture_code"],
+        save: [
+            { id: "region_capture_modifiers", index: 0 },
+            { id: "region_capture_code", index: 1 },
+        ],
+    },
 ];
 
 export const MODIFIER_MAP: Record<string, string> = {
     CONTROL: "Ctrl",
-    SUPER: "Cmd",
-    ALT: "Alt",
     SHIFT: "Shift",
     Digit1: "1",
     Digit2: "2",
@@ -201,11 +190,4 @@ export const MODIFIER_MAP: Record<string, string> = {
     Period: ".",
     Slash: "/",
     Backslash: "\\",
-};
-
-export const MODIFIER_MAP_RUST: Record<string, string> = {
-    ...Object.fromEntries(
-        Object.entries(MODIFIER_MAP).map(([key, value]) => [value, key]),
-    ),
-    Opt: "ALT",
 };

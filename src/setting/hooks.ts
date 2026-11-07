@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ShortcutItem, GeneralSetting } from "./types";
-import { eventToKeys, getConflictIds, normalizeKeys } from "./utils";
+import {
+    eventToKeys,
+    getConflictIds,
+    isSingleKeyShortcut,
+    shortcutSignature,
+} from "./utils";
 import { ConfigManager } from "./ConfigManager.ts";
 import { toast, ToastContentValue } from "@heroui/react";
 import { usePlatform } from "../hooks/usePlatform.ts";
@@ -23,7 +28,7 @@ export interface UseShortcutManagerReturn {
     ) => void;
     startRecording: (id: string) => void;
     cancelRecording: () => void;
-    handleKeyDown: (e: React.KeyboardEvent, id: string) => void;
+    handleKeyDown: (e: KeyboardEvent, id: string) => void;
     resetToDefault: (id: string) => void;
     handleSave: () => void;
     closeApp: () => void;
@@ -103,56 +108,29 @@ export default function useShortcutManager(): UseShortcutManagerReturn {
         setRecordingId(null);
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
+    const handleKeyDown = (e: KeyboardEvent, id: string) => {
         e.preventDefault();
         e.stopPropagation();
-        const oneKeyListId = ["point_key", "pinned_key", "hide_win_key"];
+        if (e.repeat || e.isComposing) return;
 
-        // 防止长按重复触发
-        if (e.repeat) return;
+        const keys = eventToKeys(e);
+        if (keys.length === 0) return;
 
-        const isModifierOnly =
-            e.key === "Control" ||
-            e.key === "Shift" ||
-            e.key === "Alt" ||
-            e.key === "Meta";
-
-        // 只按修饰键不记录
-        if (isModifierOnly && !oneKeyListId.includes(id)) return;
-
-        const keys = eventToKeys(e, isMac); // 建议内部用 e.code + modifier
-        console.log(keys);
-
-        if (!keys || keys.length === 0) return;
-
-        // 限制规则,单个按键时
-        if (oneKeyListId.includes(id)) {
-            const isFunctionKey =
-                e.code.startsWith("F") && /^F\d{1,2}$/.test(e.code);
-
-            const special = e.key === "Tab" || e.key === "Escape";
-            if (!isFunctionKey && !special) {
-                showToast("请仔细查看说明，并使用规定按键", "warning", 4000);
-                return;
-            }
+        if (
+            isSingleKeyShortcut(id) &&
+            (keys.length !== 1 || !/^(Escape|Tab|F[1-9]|F1[0-2])$/.test(keys[0]))
+        ) {
+            showToast("请仔细查看说明，并使用规定按键", "warning", 4000);
+            return;
         }
 
-        // 标准化 key（避免顺序问题）
-        const normalized = normalizeKeys(keys);
-
-        const conflict = shortcuts.find((s) => {
-            if (s.id === id) return false;
-
-            const a = normalizeKeys(s.keys);
-
-            return (
-                a.length === normalized.length &&
-                a.every((k) => normalized.includes(k))
-            );
-        });
+        const signature = shortcutSignature(keys);
+        const conflict = shortcuts.find(
+            (s) => s.id !== id && shortcutSignature(s.keys) === signature,
+        );
 
         setShortcuts((prev) =>
-            prev.map((s) => (s.id === id ? { ...s, keys: normalized } : s)),
+            prev.map((s) => (s.id === id ? { ...s, keys } : s)),
         );
 
         setRecordingId(null);

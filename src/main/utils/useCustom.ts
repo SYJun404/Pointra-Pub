@@ -1,9 +1,14 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { flushSync } from "react-dom";
 
 const WINDOW_WILL_HIDE = "window-will-hide";
+
+export function isImeKey(event: KeyboardEvent) {
+    // Chromium may report 229 for the key that commits a composition.
+    return event.isComposing || event.keyCode === 229;
+}
 
 export function hideMainWindow() {
     window.dispatchEvent(new Event(WINDOW_WILL_HIDE));
@@ -24,23 +29,71 @@ export function useWindowListener(
     setIsPinned: (isPinned: boolean) => void,
     hideKey: string,
     pinKey: string,
+    windowsSearchKey: string | null,
 ) {
     // 将所有频繁改变的属性收纳到一个 ref 对象中
-    const stateRef = useLatest({ isPinned, hideKey, pinKey });
+    const stateRef = useLatest({ isPinned, hideKey, pinKey, windowsSearchKey });
 
     useEffect(() => {
+        let mouseEvent = 0;
+        let composingTarget: EventTarget | null = null;
+        const isComposing = () =>
+            composingTarget instanceof Node && composingTarget.isConnected;
+        const handleCompositionStart = (event: CompositionEvent) => {
+            composingTarget = event.target;
+        };
+        const handleCompositionEnd = () => {
+            composingTarget = null;
+        };
+
         const handleMouseEnter = () => {
+            mouseEvent += 1;
             invoke("update_hover_status", { hovered: true });
         };
 
-        const handleMouseLeave = () => {
-            if (!stateRef.current.isPinned) {
-                invoke("update_hover_status", { hovered: false });
-                void hideMainWindow();
+        const handleMouseLeave = async () => {
+            const event = ++mouseEvent;
+            const { isPinned, windowsSearchKey } = stateRef.current;
+            if (isPinned) return;
+
+            if (windowsSearchKey !== null) {
+                if (isComposing()) return;
+                // An IME popup can take the pointer away from WebView2 without
+                // the cursor moving beyond the window's physical bounds.
+                const appWindow = getCurrentWindow();
+                try {
+                    const [cursor, origin, size] = await Promise.all([
+                        cursorPosition(),
+                        appWindow.innerPosition(),
+                        appWindow.innerSize(),
+                    ]);
+                    if (
+                        cursor.x >= origin.x &&
+                        cursor.x < origin.x + size.width &&
+                        cursor.y >= origin.y &&
+                        cursor.y < origin.y + size.height
+                    ) {
+                        return;
+                    }
+                } catch (error) {
+                    console.error("Failed to verify cursor position", error);
+                    return;
+                }
+                if (
+                    event !== mouseEvent ||
+                    stateRef.current.windowsSearchKey !== windowsSearchKey ||
+                    stateRef.current.isPinned ||
+                    isComposing()
+                ) {
+                    return;
+                }
             }
+            void invoke("update_hover_status", { hovered: false });
+            void hideMainWindow();
         };
 
         const handleKeydown = (e: KeyboardEvent) => {
+            if (isImeKey(e)) return;
             const { hideKey, pinKey, isPinned } = stateRef.current;
 
             if (e.key === hideKey) {
@@ -59,12 +112,23 @@ export function useWindowListener(
         docElment.addEventListener("mouseenter", handleMouseEnter);
         docElment.addEventListener("mouseleave", handleMouseLeave);
         document.addEventListener("keydown", handleKeydown);
+        document.addEventListener("compositionstart", handleCompositionStart);
+        document.addEventListener("compositionend", handleCompositionEnd);
 
         // 清理事件
         return () => {
+            mouseEvent += 1;
             docElment.removeEventListener("mouseenter", handleMouseEnter);
             docElment.removeEventListener("mouseleave", handleMouseLeave);
             document.removeEventListener("keydown", handleKeydown);
+            document.removeEventListener(
+                "compositionstart",
+                handleCompositionStart,
+            );
+            document.removeEventListener(
+                "compositionend",
+                handleCompositionEnd,
+            );
         };
     }, []);
 }

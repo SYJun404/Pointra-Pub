@@ -268,6 +268,7 @@ pub(crate) fn resolved_box(
 
 // ── 命中检测 ──────────────────────────────────────
 
+#[cfg(target_os = "macos")]
 pub fn select_word(words: &[WordBox]) -> Option<String> {
     // 只有一个结果时直接返回，无需命中检测
     if words.len() == 1 {

@@ -159,7 +159,7 @@ pub fn init_shortcuts<R: Runtime>(app: &AppHandle<R>) {
 
     let _ = shortcut_manager.register(shortcut_select_text);
     let _ = shortcut_manager.register(shortcut_show_input);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         let shortcut = Shortcut::new(
             Some(config.region_capture_modifiers),
@@ -181,10 +181,11 @@ pub fn handle_shortcut_event(app: &AppHandle, shortcut: &Shortcut) {
             get_data_from_selected_text(win);
         } else if shortcut.matches(config.search_win_modifiers, config.search_win_code) {
             show_input_window(win);
-        }
-        #[cfg(target_os = "macos")]
-        if shortcut.matches(config.region_capture_modifiers, config.region_capture_code) {
-            crate::utils::region_capture_mac::start_region_capture(app.clone());
+        } else {
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            if shortcut.matches(config.region_capture_modifiers, config.region_capture_code) {
+                crate::utils::region_capture::start_region_capture(app.clone());
+            }
         }
     }
 }

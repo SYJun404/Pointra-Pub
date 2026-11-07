@@ -2,11 +2,17 @@ use crate::utils::define_config::{get_config_from_store, save_config_to_store, A
 use crate::utils::shortcuts::restart_shortcuts;
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
+#[cfg(target_os = "macos")]
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<AppConfig, String> {
     get_config_from_store(&app)
+}
+
+#[tauri::command]
+pub fn get_default_config() -> AppConfig {
+    AppConfig::default()
 }
 
 #[tauri::command]

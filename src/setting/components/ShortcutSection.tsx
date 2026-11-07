@@ -1,8 +1,9 @@
-import { Xmark, ArrowsRotateLeft } from "@gravity-ui/icons";
+import { Xmark, ArrowsRotateLeft, Pencil } from "@gravity-ui/icons";
 import type { ShortcutItem } from "../types";
-import { ShortcutKeys } from "./KeyTag";
+import { keyLabel, ShortcutKeys } from "./KeyTag";
 import type { UseShortcutManagerReturn } from "../hooks";
 import { useEffect } from "react";
+import { isSingleKeyShortcut, shortcutSignature } from "../utils";
 
 interface ShortcutSectionProps {
     shortcuts: ShortcutItem[];
@@ -31,7 +32,7 @@ export default function ShortcutSection({
         if (!recordingId) return;
 
         const handler = (e: KeyboardEvent) => {
-            onKeyDown(e as any, recordingId);
+            onKeyDown(e, recordingId);
         };
 
         window.addEventListener("keydown", handler);
@@ -39,23 +40,16 @@ export default function ShortcutSection({
         return () => {
             window.removeEventListener("keydown", handler);
         };
-    }, [recordingId]);
-
-    const isModified = (item: ShortcutItem) =>
-        item.keys.join("+") !== item.defaultKeys.join("+");
+    }, [recordingId, onKeyDown]);
 
     const showTips = (id: string) => {
-        const altOrOpt = isMac ? "Opt" : "Alt";
-        const oneKeyListId = ["point_key", "pinned_key", "hide_win_key"];
-        if (oneKeyListId.includes(id)) {
-            return (
-                `支持按键：Esc / Tab / F1~F12` +
-                (id === "point_key"
-                    ? "   （ 当前快捷键修改后，重启软件才可生效 ）"
-                    : "")
-            );
+        if (isSingleKeyShortcut(id)) {
+            return "支持 Esc、Tab 或 F1–F12";
         }
-        return `同时按下 Cmd / ${altOrOpt} / Ctrl / Shift +任意键`;
+        const modifiers = ["SUPER", "ALT", "CONTROL", "SHIFT"]
+            .map((key) => keyLabel(key, isMac))
+            .join(" / ");
+        return `按住修饰键（${modifiers}），再按主键`;
     };
 
     return (
@@ -76,7 +70,12 @@ export default function ShortcutSection({
                 {shortcuts.map((item) => {
                     const isRec = recordingId === item.id;
                     const hasConflict = conflictIds.has(item.id);
-                    const changed = isModified(item);
+                    const changed =
+                        shortcutSignature(item.keys) !==
+                        shortcutSignature(item.defaultKeys);
+                    const defaultLabel = item.defaultKeys
+                        .map((key) => keyLabel(key, isMac))
+                        .join(" + ");
 
                     return (
                         <div
@@ -87,7 +86,7 @@ export default function ShortcutSection({
                         >
                             <div className="flex items-center justify-between p-3 min-h-13">
                                 {/* 左侧 */}
-                                <div className="flex-1 min-w-0 mr-3">
+                                <div className="flex-1 min-w-20 mr-3">
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm text-mainTitleW">
                                             {item.label}
@@ -106,7 +105,7 @@ export default function ShortcutSection({
                                 </div>
 
                                 {/* 右侧 */}
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center justify-end min-w-0">
                                     {isRec ? (
                                         /* ---- 录制 ---- */
                                         <div
@@ -118,35 +117,46 @@ export default function ShortcutSection({
                                             <span className="text-xs text-mainBlueW font-medium animate-pulse">
                                                 按下快捷键...
                                             </span>
-                                            <Xmark
-                                                width={14}
-                                                height={14}
-                                                color="#4a90d9"
-                                                className="cursor-pointer hover:opacity-70"
+                                            <button
+                                                type="button"
+                                                aria-label={`取消录制${item.label}`}
+                                                className="text-mainBlueW cursor-pointer hover:opacity-70"
                                                 onClick={onCancelRecording}
-                                            />
+                                            >
+                                                <Xmark width={14} height={14} />
+                                            </button>
                                         </div>
                                     ) : (
                                         /* ---- 显示 ---- */
-                                        <div className="flex items-center gap-2">
-                                            <ShortcutKeys keys={item.keys} />
-                                            <div className="flex items-center gap-1">
+                                        <div className="flex flex-wrap items-center justify-end gap-2">
+                                            <ShortcutKeys
+                                                keys={item.keys}
+                                                isMac={isMac}
+                                            />
+                                            <div className="flex shrink-0 items-center gap-1">
                                                 {changed && (
                                                     <button
+                                                        type="button"
+                                                        title={`默认快捷键 ${defaultLabel}`}
+                                                        aria-label={`重置${item.label}为 ${defaultLabel}`}
                                                         onClick={() =>
                                                             onResetOne(item.id)
                                                         }
-                                                        className="flex items-center justify-center w-6 h-6 rounded-md border border-borderMainW
-                                                                       bg-white text-tagSecondW hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200
-                                                                       transition-all active:scale-90 cursor-pointer"
+                                                        className="flex items-center gap-1 px-1.5 h-6 rounded-md border border-borderMainW
+                                                                   bg-white text-tagSecondW text-[11px] hover:bg-subBgW hover:text-mainTitleW
+                                                                   cursor-pointer transition-colors"
                                                     >
                                                         <ArrowsRotateLeft
                                                             width={12}
                                                             height={12}
                                                         />
+                                                        重置
                                                     </button>
                                                 )}
                                                 <button
+                                                    type="button"
+                                                    aria-label={`编辑${item.label}`}
+                                                    title={`编辑${item.label}`}
                                                     onClick={() =>
                                                         onStartRecording(
                                                             item.id,
@@ -156,7 +166,7 @@ export default function ShortcutSection({
                                                                bg-white text-tagSecondW hover:bg-blueBgW hover:text-mainBlueW hover:border-blueBorderW
                                                                transition-all active:scale-90 cursor-pointer"
                                                 >
-                                                    <Xmark
+                                                    <Pencil
                                                         width={12}
                                                         height={12}
                                                     />

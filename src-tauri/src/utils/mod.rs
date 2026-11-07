@@ -12,11 +12,17 @@ cfg_mods!(
     macos_api,
     ocr_mac,
     region_capture_mac,
-    region_text,
     set_window,
     selection_mac
 );
-cfg_mods!(target_os = "windows", capture_win, ocr_win, selection_win);
+cfg_mods!(
+    target_os = "windows",
+    capture_win,
+    ocr_win,
+    region_capture_win,
+    selection_win
+);
+cfg_mods!(any(target_os = "macos", target_os = "windows"), region_capture, region_text);
 
 // 通用模块
 pub mod define_config;

@@ -8,9 +8,9 @@ use crate::utils::ocr_mac::{recognize_words, select_word};
 #[cfg(target_os = "windows")]
 use super::selection_win::get_text;
 #[cfg(target_os = "windows")]
-use crate::utils::capture_win::capture_around_cursor;
+use crate::utils::capture_win::capture_at_position;
 #[cfg(target_os = "windows")]
-use crate::utils::ocr_win::{recognize_words, select_word};
+use crate::utils::ocr_win::{recognize_words, select_cursor_word};
 
 use crate::utils::show_window::show_translation_window;
 use crate::AppState;
@@ -41,10 +41,7 @@ pub fn get_word_under_cursor(
     #[cfg(target_os = "macos")]
     let img = capture_at_position(position, 200, 40)?;
     #[cfg(target_os = "windows")]
-    let img = {
-        let _ = position;
-        capture_around_cursor(200, 40)?
-    };
+    let (img, cursor) = capture_at_position(position, 320, 64)?;
     let captured = started.elapsed();
     // Show feedback only after capture, so the popup cannot cover the source text.
     on_captured();
@@ -55,5 +52,9 @@ pub fn get_word_under_cursor(
             started.elapsed() - captured
         );
     }
-    Ok(select_word(&words).filter(|word| !word.is_empty()))
+    #[cfg(target_os = "macos")]
+    let word = select_word(&words);
+    #[cfg(target_os = "windows")]
+    let word = select_cursor_word(&words, cursor, (img.width(), img.height()));
+    Ok(word.filter(|word| !word.is_empty()))
 }

@@ -6,13 +6,13 @@ import Footer from "../components/Footer";
 import { TransResultZHTypes } from "../types/transResult";
 import { invoke } from "@tauri-apps/api/core";
 import SearchContent from "../components/SearchContent";
-import { useOnWindowChange } from "../utils/useCustom";
+import { isImeKey, useOnWindowChange } from "../utils/useCustom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@heroui/react";
 import CustomToast from "../components/CustomToast";
 import { Spinner } from "@heroui/react";
 
-function SearchPage({ isMac }: { isMac: boolean }) {
+function SearchPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -68,6 +68,7 @@ function SearchPage({ isMac }: { isMac: boolean }) {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (isImeKey(e.nativeEvent)) return;
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSubmit(e);
@@ -192,11 +193,6 @@ function SearchPage({ isMac }: { isMac: boolean }) {
                         <p className="text-sm text-tagW text-center mt-20">
                             输入文字，按 Enter 翻译
                         </p>
-                        {!isMac && (
-                            <p className="text-[11px] text-tagW text-center ">
-                                请勿将光标移动到输入框内
-                            </p>
-                        )}
                     </div>
                 )}
             </div>

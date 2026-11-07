@@ -1,12 +1,11 @@
 // ConfigManager.ts
 import { invoke } from "@tauri-apps/api/core";
-import { platform } from "@tauri-apps/plugin-os";
 import { RustAppConfig, GeneralSetting, ShortcutItem } from "./types";
 import {
     GENERAL_SETTINGS_TEMPLATE,
     SHORTCUT_LIST_TEMPLATE,
-    MODIFIER_MAP_RUST,
 } from "./settingsMeta.ts";
+import { normalizeKeys } from "./utils";
 
 export class ConfigManager {
     /**
@@ -24,25 +23,34 @@ export class ConfigManager {
      * 获取前端渲染所需的完整打包数据
      */
     static async getAllSettings() {
-        const rustConfig = await this.fetchRawConfig();
+        const [rustConfig, defaults] = await Promise.all([
+            this.fetchRawConfig(),
+            invoke<RustAppConfig>("get_default_config"),
+        ]);
 
         const general = GENERAL_SETTINGS_TEMPLATE.map((meta) => ({
             ...meta,
             value: rustConfig[meta.id],
         }));
 
-        const shortcuts: ShortcutItem[] = SHORTCUT_LIST_TEMPLATE.filter(
-            (meta) => !meta.macOnly || platform() === "macos",
-        ).map(
-            (meta) => ({
+        const shortcuts: ShortcutItem[] = SHORTCUT_LIST_TEMPLATE.map((meta) => {
+            const readKeys = (config: RustAppConfig) =>
+                normalizeKeys(
+                    meta.rustKeys.flatMap((key) =>
+                        key.endsWith("_modifiers")
+                            ? config[key]
+                                  .split("|")
+                                  .map((part) => part.trim())
+                                  .filter(Boolean)
+                            : [config[key]],
+                    ),
+                );
+            return {
                 ...meta,
-                keys: meta.rustKeys.flatMap((key) =>
-                    key.endsWith("_modifiers")
-                        ? rustConfig[key].split("|").map((part) => part.trim()).filter(Boolean)
-                        : [rustConfig[key]],
-                ),
-            }),
-        );
+                keys: readKeys(rustConfig),
+                defaultKeys: readKeys(defaults),
+            };
+        });
 
         const first_setup_completed = rustConfig.first_setup_completed;
 
@@ -67,10 +75,9 @@ export class ConfigManager {
             for (const setting of shortcuts) {
                 for (const key of setting.save) {
                     // 修饰键允许 Cmd + Shift 等组合，主按键始终取最后一个。
-                    const keys = setting.keys.map((value) => MODIFIER_MAP_RUST[value] ?? value);
                     const value = key.id.endsWith("_modifiers")
-                        ? keys.slice(0, -1).join(" | ")
-                        : keys[keys.length - 1];
+                        ? setting.keys.slice(0, -1).join(" | ")
+                        : setting.keys[setting.keys.length - 1];
                     Object.assign(config, {
                         [key.id]: value,
                     });
@@ -78,7 +85,7 @@ export class ConfigManager {
             }
 
             return await invoke<boolean>("update_config", {
-                newConfig: config, //小了A阿斯顿笑了
+                newConfig: config,
             });
         } catch (error) {
             console.error(error);
